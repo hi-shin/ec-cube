@@ -3,7 +3,9 @@ set -e
 
 DB_PATH="/var/app/database/eccube.db"
 
-# DB がない場合、新規作成
+echo "Checking EC-Cube Database..."
+
+# DB ファイルがない場合は新規作成
 if [ ! -f "$DB_PATH" ]; then
     echo "Creating new SQLite database..."
     touch "$DB_PATH"
@@ -11,10 +13,14 @@ if [ ! -f "$DB_PATH" ]; then
     chmod 660 "$DB_PATH"
 fi
 
-# シンボリックリンクを作成（EC-Cube から正しく参照するため）
+# シンボリックリンクを作成
 ln -sf "$DB_PATH" /var/app/current/var/eccube.db
 
-# マイグレーションを実行
-echo "Running migrations..."
-cd /var/app/current
-sudo -u webapp bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+# `dtb_page` テーブルがない場合のみ `eccube:install` を実行
+if ! sqlite3 "$DB_PATH" "SELECT name FROM sqlite_master WHERE type='table' AND name='dtb_page';" | grep -q "dtb_page"; then
+    echo "Running ECCube installation..."
+    sudo -u webapp bin/console eccube:install
+else
+    echo "Database already initialized. Running migrations instead..."
+    sudo -u webapp bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+fi
